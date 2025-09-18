@@ -8,10 +8,10 @@ import numpy as np
 # Servidor com fila explícita
 # ----------------------
 class Servidor:
-    def __init__(self, env, id):
+    def __init__(self, env, id, queue_size= 100):
         self.env = env
         self.id = id
-        self.fila = simpy.Store(env)
+        self.fila = simpy.Store(env, capacity=queue_size)
         self.ocupado = False
         self.times = []
         self.processados = 0
@@ -22,13 +22,13 @@ class Servidor:
         while True:
             req = yield self.fila.get()
             self.ocupado = True
-            chegada, tipo = req
+            chegada, tipo, tamanho = req
 
-            # tempo de processamento variável
+            # tempo de processamento depende do tipo + tamanho
             if tipo == "cpu":
-                tempo_proc = random.uniform(2, 5)
-            else:
-                tempo_proc = random.uniform(4, 8)
+                tempo_proc = tamanho * random.uniform(1, 2)
+            else:  # I/O
+                tempo_proc = tamanho * random.uniform(2, 3)
 
             inicio = self.env.now
             yield self.env.timeout(tempo_proc)
@@ -70,9 +70,10 @@ class Balanceador:
 def gerador_requisicoes(env, balanceador, taxa=1.0):
     tipos = ["cpu", "io"]
     while True:
-        yield env.timeout(random.expovariate(taxa))
+        yield env.timeout(random.expovariate(taxa))  # chegadas exponenciais
         tipo = random.choice(tipos)
-        balanceador.encaminhar((env.now, tipo))
+        tamanho = random.uniform(1, 5)  # tamanho da requisição (1 a 5 "unidades")
+        balanceador.encaminhar((env.now, tipo, tamanho))
 
 # ----------------------
 # Simulação
@@ -99,7 +100,7 @@ def simular(politica, taxa_chegada=0.5, tempo_simulacao=2000, seed=42):
 # Configuração da animação
 # ----------------------
 politicas = ["random", "roundrobin", "shortest"]
-taxas_chegada = np.linspace(0.2, 4.0, 40)
+taxas_chegada = np.linspace(0.2, 10.0, 100)
 
 fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 
