@@ -8,7 +8,7 @@ import numpy as np
 # Servidor com fila explícita
 # ----------------------
 class Servidor:
-    def __init__(self, env, id, queue_size= 100):
+    def __init__(self, env, id, queue_size= 100, speed=1.0):
         self.env = env
         self.id = id
         self.fila = simpy.Store(env, capacity=queue_size)
@@ -26,9 +26,9 @@ class Servidor:
 
             # tempo de processamento depende do tipo + tamanho
             if tipo == "cpu":
-                tempo_proc = tamanho * random.uniform(1, 2)
+                tempo_proc = (tamanho * random.expovariate(1/2.0)) /  self.speed
             else:  # I/O
-                tempo_proc = tamanho * random.uniform(2, 3)
+                tempo_proc = (tamanho * random.expovariate(1/4.0)) /  self.speed
 
             inicio = self.env.now
             yield self.env.timeout(tempo_proc)
@@ -78,7 +78,7 @@ def gerador_requisicoes(env, balanceador, taxa=1.0):
 # ----------------------
 # Simulação
 # ----------------------
-def simular(politica, taxa_chegada=0.5, tempo_simulacao=2000, seed=42):
+def simular(politica, taxa_chegada=0.5, tempo_simulacao=5000, seed=42):
     random.seed(seed)
     env = simpy.Environment()
     servidores = [Servidor(env, i) for i in range(3)]
@@ -140,7 +140,7 @@ def init():
 def update(frame):
     taxa = taxas_chegada[frame]
     for pol in politicas:
-        thr, resp, util = simular(pol, taxa_chegada=taxa, tempo_simulacao=200)
+        thr, resp, util = simular(pol, taxa_chegada=taxa)
         metrics[pol]["thr"].append(thr)
         metrics[pol]["resp"].append(resp)
         metrics[pol]["util"].append(util)
