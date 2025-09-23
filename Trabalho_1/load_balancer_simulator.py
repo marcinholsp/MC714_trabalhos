@@ -8,7 +8,7 @@ import numpy as np
 # Servidor com fila explícita
 # ----------------------
 class Servidor:
-    def __init__(self, env, id, queue_size= 100, speed=1.0):
+    def __init__(self, env, id, queue_size= 100, speed=1.0, alpha=0.2):
         self.env = env
         self.id = id
         self.fila = simpy.Store(env, capacity=queue_size)
@@ -18,6 +18,9 @@ class Servidor:
         self.tempo_ocupado = 0
         self.speed = speed  # velocidade de processamento
         self.action = env.process(self.run())
+        self.action = env.process(self.run())
+        self.alpha = alpha
+        self.ema_response = 1.0 
 
     def run(self):
         while True:
@@ -39,6 +42,16 @@ class Servidor:
             self.processados += 1
             self.tempo_ocupado += (fim - inicio)
             self.ocupado = False
+            # Cálculo do tempo de resposta
+            tempo_resposta= fim-chegada
+            # Atualização do tempo médio de resposta (EMA)
+            if self.ema_response is None:
+                self.ema_response = tempo_resposta
+            else:
+                self.ema_response = (
+                    self.alpha * tempo_resposta +
+                    (1 - self.alpha) * self.ema_response
+                )
 
     def enviar(self, requisicao):
         self.fila.put(requisicao)
@@ -63,6 +76,11 @@ class Balanceador:
 
         elif self.politica == "shortest":
             servidor = min(self.servidores, key=lambda s: len(s.fila.items))
+
+        elif self.politica == "Least_Response_Time":
+             servidor = min( self.servidores, key=lambda s: s.ema_response )
+        elif self.politica== "least_connections":
+            servidor = min(self.servidores, key=lambda s: len(s.fila.items) + (1 if s.ocupado else 0))
 
         elif self.politica == "p2c":  # Power of Two Choices
             candidatos = random.sample(self.servidores, 2)
@@ -126,7 +144,7 @@ def simular(politica, taxa_chegada=0.5, tempo_simulacao=5000, seed=42):
 # ----------------------
 # Configuração da animação
 # ----------------------
-politicas = ["random", "roundrobin", "shortest", "p2c", "leastload", "led", "adaptive"]
+politicas = ["random", "roundrobin", "shortest","p2c", "leastload", "led", "adaptive", "Least_Response_Time","least_connections"]
 taxas_chegada = np.linspace(0.2, 10.0, 100)
 
 fig, axes = plt.subplots(1, 3, figsize=(15, 5))
@@ -134,7 +152,8 @@ fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 # Subplots para throughput, resposta, utilização
 lines = {pol: [] for pol in politicas}
 metrics = {pol: {"thr": [], "resp": [], "util": []} for pol in politicas}
-colors = {"random": "tab:blue", "roundrobin": "tab:green", "shortest": "tab:red", "p2c": "tab:orange", "leastload": "tab:purple", "led": "tab:brown", "adaptive": "tab:pink"}
+#colors = {"random": "tab:blue", "roundrobin": "tab:green", "shortest": "tab:red", "p2c": "tab:orange", "leastload": "tab:purple", "led": "tab:brown", "adaptive": "tab:pink"}
+colors = {"random": "tab:blue", "roundrobin": "tab:green", "shortest": "tab:red","p2c": "tab:orange", "leastload": "tab:purple", "led": "tab:brown", "adaptive": "tab:pink", "Least_Response_Time": "tab:grey", "least_connections":"tab:cyan"}
 
 for ax, title in zip(axes, ["Throughput", "Tempo médio de resposta", "Utilização"]):
     ax.set_title(title)
