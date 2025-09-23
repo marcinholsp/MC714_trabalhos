@@ -16,6 +16,7 @@ class Servidor:
         self.times = []
         self.processados = 0
         self.tempo_ocupado = 0
+        self.speed = speed  # velocidade de processamento
         self.action = env.process(self.run())
 
     def run(self):
@@ -46,7 +47,8 @@ class Servidor:
 # Balanceador
 # ----------------------
 class Balanceador:
-    def __init__(self, servidores, politica="random"):
+    def __init__(self, env, servidores, politica="random"):
+        self.env = env
         self.servidores = servidores
         self.politica = politica
         self.rr_index = 0
@@ -54,15 +56,40 @@ class Balanceador:
     def encaminhar(self, requisicao):
         if self.politica == "random":
             servidor = random.choice(self.servidores)
+
         elif self.politica == "roundrobin":
             servidor = self.servidores[self.rr_index % len(self.servidores)]
             self.rr_index += 1
+
         elif self.politica == "shortest":
             servidor = min(self.servidores, key=lambda s: len(s.fila.items))
+
+        elif self.politica == "p2c":  # Power of Two Choices
+            candidatos = random.sample(self.servidores, 2)
+            servidor = min(candidatos, key=lambda s: len(s.fila.items))
+
+        elif self.politica == "leastload":  # Least-loaded
+            servidor = min(self.servidores,
+                           key=lambda s: s.tempo_ocupado / (self.env.now + 1e-6))
+
+        elif self.politica == "led":  # Least Expected Delay
+            servidor = min(
+                self.servidores,
+                key=lambda s: (len(s.fila.items) + (1 if s.ocupado else 0)) * (1.0 / s.speed)
+            )
+
+        elif self.politica == "adaptive":
+            carga_total = sum(len(s.fila.items) for s in self.servidores)
+            if carga_total < len(self.servidores):  # carga baixa
+                servidor = random.choice(self.servidores)
+            else:  # carga alta
+                servidor = min(self.servidores, key=lambda s: len(s.fila.items))
+
         else:
-            raise ValueError("Política inválida!")
+            raise ValueError(f"Política inválida: {self.politica}")
 
         servidor.enviar(requisicao)
+
 
 # ----------------------
 # Geração de Requisições
@@ -81,8 +108,8 @@ def gerador_requisicoes(env, balanceador, taxa=1.0):
 def simular(politica, taxa_chegada=0.5, tempo_simulacao=5000, seed=42):
     random.seed(seed)
     env = simpy.Environment()
-    servidores = [Servidor(env, i) for i in range(3)]
-    balanceador = Balanceador(servidores, politica=politica)
+    servidores = [Servidor(env, i, speed= 2**i) for i in range(3)]
+    balanceador = Balanceador(env, servidores, politica=politica)
 
     env.process(gerador_requisicoes(env, balanceador, taxa=taxa_chegada))
     env.run(until=tempo_simulacao)
@@ -99,7 +126,7 @@ def simular(politica, taxa_chegada=0.5, tempo_simulacao=5000, seed=42):
 # ----------------------
 # Configuração da animação
 # ----------------------
-politicas = ["random", "roundrobin", "shortest"]
+politicas = ["random", "roundrobin", "shortest", "p2c", "leastload", "led", "adaptive"]
 taxas_chegada = np.linspace(0.2, 10.0, 100)
 
 fig, axes = plt.subplots(1, 3, figsize=(15, 5))
@@ -107,7 +134,7 @@ fig, axes = plt.subplots(1, 3, figsize=(15, 5))
 # Subplots para throughput, resposta, utilização
 lines = {pol: [] for pol in politicas}
 metrics = {pol: {"thr": [], "resp": [], "util": []} for pol in politicas}
-colors = {"random": "tab:blue", "roundrobin": "tab:green", "shortest": "tab:red"}
+colors = {"random": "tab:blue", "roundrobin": "tab:green", "shortest": "tab:red", "p2c": "tab:orange", "leastload": "tab:purple", "led": "tab:brown", "adaptive": "tab:pink"}
 
 for ax, title in zip(axes, ["Throughput", "Tempo médio de resposta", "Utilização"]):
     ax.set_title(title)
