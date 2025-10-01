@@ -144,7 +144,8 @@ def simular(politica, taxa_chegada=0.5, tempo_simulacao=5000, seed=42):
 # ----------------------
 # Configuração da animação
 # ----------------------
-politicas = ["random", "roundrobin", "shortest","p2c", "leastload", "led", "adaptive", "Least_Response_Time","least_connections"]
+#"""random", "roundrobin", "shortest",""" 
+politicas = [ "random", "roundrobin", "shortest","p2c", "leastload", "led", "adaptive", "Least_Response_Time","least_connections"]
 taxas_chegada = np.linspace(0.2, 10.0, 100)
 
 fig, axes = plt.subplots(1, 3, figsize=(15, 5))
@@ -194,6 +195,8 @@ def update(frame):
         lines[pol][0].set_data(taxas_chegada[:frame+1], metrics[pol]["thr"])
         lines[pol][1].set_data(taxas_chegada[:frame+1], metrics[pol]["resp"])
         lines[pol][2].set_data(taxas_chegada[:frame+1], metrics[pol]["util"])
+ # Adicione esta linha para imprimir no terminal:
+      #  print(f"Política: {pol} | Taxa: {taxa:.2f} | Throughput: {thr:.4f} | Tempo Médio: {resp:.4f} | Utilização: {util:.4f}")
 
     # Ajusta limites dinâmicos de Y
     axes[0].relim()
